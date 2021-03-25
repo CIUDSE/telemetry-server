@@ -1,0 +1,16 @@
+[package]
+name = "telemetry-server"
+version = "0.1.0"
+authors = ["Robert Serrano Kobylyansky <sk.robchik@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+actix-web = "3"
+actix-web-actors = "3"
+actix = "0.10.0"
+actix-files = "0.3"
+env_logger = "0.8"
+log = "0.4"
+serde_json = "1.0"
