@@ -1,10 +1,10 @@
-use std::time::{Duration, Instant, UNIX_EPOCH};
-use log::{debug, warn};
+use crate::realtime_telemetry_provider::{RealtimeClientConnections, UpdateTelemetryMessage};
 use actix::prelude::*;
 use actix_web::web;
 use actix_web_actors::ws;
+use log::{debug, warn};
 use serde_json::json;
-use crate::realtime_telemetry_provider::{RealtimeClientConnections, UpdateTelemetryMessage};
+use std::time::{Duration, Instant, UNIX_EPOCH};
 
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
 const CLIENT_TIMEOUT: Duration = Duration::from_secs(10);
@@ -25,11 +25,7 @@ impl Actor for InjestSocket {
 }
 
 impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for InjestSocket {
-    fn handle(
-        &mut self,
-        msg: Result<ws::Message, ws::ProtocolError>,
-        ctx: &mut Self::Context,
-    ) {
+    fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
         debug!("WS: {:?} [{}]", msg, self.full_key);
         match msg {
             Ok(ws::Message::Ping(msg)) => {
@@ -41,8 +37,8 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for InjestSocket {
             }
             Ok(ws::Message::Text(text)) => {
                 self.handle_message(ctx, text);
-            },
-            Ok(ws::Message::Binary(_bin)) => {},
+            }
+            Ok(ws::Message::Binary(_bin)) => {}
             Ok(ws::Message::Close(reason)) => {
                 ctx.close(reason);
                 ctx.stop();
@@ -54,7 +50,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for InjestSocket {
 
 impl InjestSocket {
     pub fn new(full_key: String, data: web::Data<RealtimeClientConnections>) -> Self {
-        InjestSocket{
+        InjestSocket {
             last_heartbeat: Instant::now(),
             full_key: full_key,
             data: data,
@@ -79,22 +75,21 @@ impl InjestSocket {
         let value = msg.parse::<f32>();
         if value.is_err() {
             warn!("Socket message is not valid value: {}", msg);
-            return
+            return;
         }
         let value = value.unwrap();
         let sockets = self.data.sockets.lock();
         if sockets.is_err() {
             warn!("Couldn't aquire socket list lock");
-            return
+            return;
         }
         let sockets = sockets.unwrap();
         let key_sockets = sockets.get(&self.full_key);
         if key_sockets.is_none() {
             debug!("No registered client sockets for point [{}]", self.full_key);
-            return
+            return;
         }
         let key_sockets = key_sockets.unwrap();
-
 
         let timestamp = UNIX_EPOCH.elapsed().unwrap().as_millis() as u64;
         let message = UpdateTelemetryMessage::from(json!({
