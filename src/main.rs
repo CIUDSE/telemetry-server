@@ -43,10 +43,10 @@ async fn main() -> std::io::Result<()> {
     std::env::set_var("RUST_LOG", "info,actix_server=info,actix_web=info");
 
     #[cfg(debug_assertions)]
-    let root_dir = "static/";
-
+    let root_dir = "ciudse-telemetry/dist/";
+    
     #[cfg(not(debug_assertions))]
-    let root_dir = "ciudse_telemetry/dist";
+    let root_dir = "static/";
     
     env_logger::init();
 
