@@ -2,9 +2,9 @@ use actix_files as fs;
 use actix_web::{get, middleware, web, App, Error, HttpRequest, HttpResponse, HttpServer};
 
 mod realtime_telemetry_provider;
-use realtime_telemetry_provider::{RealtimeTelemetryProvider, RealtimeClientConnections};
 use actix_web_actors::ws;
 use log::{debug, info};
+use realtime_telemetry_provider::{RealtimeClientConnections, RealtimeTelemetryProvider};
 mod injest_socket;
 use injest_socket::InjestSocket;
 
@@ -13,7 +13,7 @@ async fn realtime_index(
     r: HttpRequest,
     stream: web::Payload,
     info: web::Path<String>,
-    data: web::Data<RealtimeClientConnections>
+    data: web::Data<RealtimeClientConnections>,
 ) -> Result<HttpResponse, Error> {
     debug!("{:?}", r);
     let full_key = info.0;
@@ -26,7 +26,7 @@ async fn injest_index(
     r: HttpRequest,
     stream: web::Payload,
     info: web::Path<String>,
-    data: web::Data<RealtimeClientConnections>
+    data: web::Data<RealtimeClientConnections>,
 ) -> Result<HttpResponse, Error> {
     let full_key = info.0;
     info!("New injest socket for: {}", full_key);
@@ -43,8 +43,7 @@ async fn main() -> std::io::Result<()> {
     std::env::set_var("RUST_LOG", "info,actix_server=info,actix_web=info");
     
     env_logger::init();
-    
-    
+
     let realtime_connections = web::Data::new(RealtimeClientConnections::new());
 
     HttpServer::new(move || {
