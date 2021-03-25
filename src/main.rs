@@ -41,6 +41,12 @@ async fn main() -> std::io::Result<()> {
     
     #[cfg(not(debug_assertions))]
     std::env::set_var("RUST_LOG", "info,actix_server=info,actix_web=info");
+
+    #[cfg(debug_assertions)]
+    let root_dir = "static/";
+
+    #[cfg(not(debug_assertions))]
+    let root_dir = "ciudse_telemetry/dist";
     
     env_logger::init();
 
@@ -55,7 +61,7 @@ async fn main() -> std::io::Result<()> {
             .service(realtime_index)
             .service(injest_index)
             // static files
-            .service(fs::Files::new("/", "static/").index_file("index.html"))
+            .service(fs::Files::new("/", root_dir).index_file("index.html"))
     })
     .bind("127.0.0.1:8081")?
     .run()
