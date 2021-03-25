@@ -4,7 +4,7 @@ use actix_web::{get, middleware, web, App, Error, HttpRequest, HttpResponse, Htt
 mod realtime_telemetry_provider;
 use realtime_telemetry_provider::{RealtimeTelemetryProvider, RealtimeClientConnections};
 use actix_web_actors::ws;
-use log::{info};
+use log::{debug, info};
 mod injest_socket;
 use injest_socket::InjestSocket;
 
@@ -15,7 +15,7 @@ async fn realtime_index(
     info: web::Path<String>,
     data: web::Data<RealtimeClientConnections>
 ) -> Result<HttpResponse, Error> {
-    //debug!("{:?}", r);
+    debug!("{:?}", r);
     let full_key = info.0;
     info!("Domain object requesting telemetry: {}", full_key);
     ws::start(RealtimeTelemetryProvider::new(full_key, data), &r, stream)
@@ -35,7 +35,13 @@ async fn injest_index(
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    
+    #[cfg(debug_assertions)]
     std::env::set_var("RUST_LOG", "debug,actix_server=debug,actix_web=debug");
+    
+    #[cfg(not(debug_assertions))]
+    std::env::set_var("RUST_LOG", "info,actix_server=info,actix_web=info");
+    
     env_logger::init();
     
     
