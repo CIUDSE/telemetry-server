@@ -51,17 +51,38 @@ impl Actor for RealtimeTelemetryProvider {
     type Context = ws::WebsocketContext<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
+        // Heartbeat
         self.heartbeat(ctx);
         
+        // Register client in global state
         let addr = ctx.address();
-        let mut sockets = self.data.sockets.lock().unwrap();
+        let sockets = self.data.sockets.lock();
+        if sockets.is_err() {
+            warn!("Couldn't aquire lock to add client socket to list! Closing connection client...");
+            ctx.close(Some(ws::CloseReason{
+                code: ws::CloseCode::Error,
+                description: Some("Internal server error. Couldn't register client.".to_string()),
+            }));
+            return
+        }
+        let mut sockets = sockets.unwrap();
         sockets.entry(self.full_key.clone()).or_insert(HashSet::new()).insert(addr);
         debug!("Adding new socket to list. Current Sockets [{}]: {:?}", sockets.len(), sockets);
     }
 
     fn stopping(&mut self, ctx: &mut Self::Context) -> Running{
+        // Unregister client from global state
         let addr = ctx.address();
-        let mut sockets = self.data.sockets.lock().unwrap();
+        let sockets = self.data.sockets.lock();
+        if sockets.is_err(){
+            warn!("Couldn't aquire lock to remove client from socket list! This may cause an error if sending data to stopped actor address");
+            // ? What should we do here? Is Actix web smart enough to ignore messages to stopped actor?
+            // ? Maybe resume and try to aquire lock later?
+            // For now just stop
+            return Running::Stop
+            // TODO: Figure out solution
+        }
+        let mut sockets = sockets.unwrap();
         sockets.entry(self.full_key.clone()).or_insert(HashSet::new()).remove(&addr);
         debug!("Removing socket from list. Current Sockets [{}]: {:?}", sockets.len(), sockets);
         
@@ -84,9 +105,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for RealtimeTelemetry
             Ok(ws::Message::Pong(_)) => {
                 self.last_heartbeat = Instant::now();
             }
-            Ok(ws::Message::Text(_text)) => {
-                
-            },
+            Ok(ws::Message::Text(_text)) => {},
             Ok(ws::Message::Binary(_bin)) => {},
             Ok(ws::Message::Close(reason)) => {
                 ctx.close(reason);
