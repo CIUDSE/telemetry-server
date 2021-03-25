@@ -39,3 +39,6 @@ Plugins in the `CIUDSE/ciudse-telemetry` repo are developed in conjuction with t
 This server could also be used to statically serve the frontend.
 
 An example telemetry data generator is providad as a python program. `/example_telemetry_generator.py`
+
+
+When built in release mode, will serve webpage from `static/`. If in debug, will serve from `ciudse_telemetry/dist`
