@@ -21,6 +21,8 @@ impl Actor for InjestSocket {
 
     fn started(&mut self, ctx: &mut Self::Context) {
         self.heartbeat(ctx);
+
+        // TODO: Create new table for key in database if not already present
     }
 }
 
@@ -72,25 +74,28 @@ impl InjestSocket {
     }
 
     fn handle_message(&mut self, _ctx: &mut <Self as Actor>::Context, msg: String) {
-        let value = msg.parse::<f32>();
-        if value.is_err() {
-            warn!("Socket message is not valid value: {}", msg);
-            return;
-        }
-        let value = value.unwrap();
-        let sockets = self.data.sockets.lock();
-        if sockets.is_err() {
-            warn!("Couldn't aquire socket list lock");
-            return;
-        }
-        let sockets = sockets.unwrap();
-        let key_sockets = sockets.get(&self.full_key);
-        if key_sockets.is_none() {
-            debug!("No registered client sockets for point [{}]", self.full_key);
-            return;
-        }
-        let key_sockets = key_sockets.unwrap();
-
+        let value = match msg.parse::<f32>() {
+            Ok(x) => x,
+            Err(_) => {
+                warn!("Socket message is not valid value: {}", msg);
+                return;
+            }
+        };
+        let sockets = match self.data.sockets.lock() {
+            Ok(x) => x,
+            Err(x) => {
+                warn!("Couldn't aquire socket list lock: {}", x);
+                return;
+            }
+        };
+        let key_sockets = match sockets.get(&self.full_key) {
+            Some(x) => x,
+            None => {
+                debug!("No registered client sockets for point [{}]", self.full_key);
+                return;
+            }
+        };
+        // ? Will we ever get that far ?
         let timestamp = UNIX_EPOCH.elapsed().unwrap().as_millis() as u64;
         let message = UpdateTelemetryMessage::from(json!({
             "timestamp": timestamp,
@@ -101,5 +106,7 @@ impl InjestSocket {
             debug!("Sending message [{}] to: {:?}", self.full_key, addr);
             addr.do_send(message.clone());
         }
+
+        // TODO: Add value to database
     }
 }

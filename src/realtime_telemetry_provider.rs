@@ -49,18 +49,18 @@ impl Actor for RealtimeTelemetryProvider {
         self.heartbeat(ctx);
         // Register client in global state
         let addr = ctx.address();
-        let sockets = self.data.sockets.lock();
-        if sockets.is_err() {
-            warn!(
-                "Couldn't aquire lock to add client socket to list! Closing connection client..."
-            );
-            ctx.close(Some(ws::CloseReason {
-                code: ws::CloseCode::Error,
-                description: Some("Internal server error. Couldn't register client.".to_string()),
-            }));
-            return;
-        }
-        let mut sockets = sockets.unwrap();
+        let mut sockets = match self.data.sockets.lock() {
+            Ok(x) => x,
+            Err(x) => {
+                warn!("Couldn't aquire lock to add client socket to list! Closing connection client...");
+                warn!("{:?}", x);
+                ctx.close(Some(ws::CloseReason {
+                    code: ws::CloseCode::Error,
+                    description: Some("Internal server error. Couldn't register client.".to_string()),
+                }));
+                return;
+            }
+        };
         sockets
             .entry(self.full_key.clone())
             .or_insert(HashSet::new())
@@ -75,16 +75,18 @@ impl Actor for RealtimeTelemetryProvider {
     fn stopping(&mut self, ctx: &mut Self::Context) -> Running {
         // Unregister client from global state
         let addr = ctx.address();
-        let sockets = self.data.sockets.lock();
-        if sockets.is_err() {
-            warn!("Couldn't aquire lock to remove client from socket list! This may cause an error if sending data to stopped actor address");
-            // ? What should we do here? Is Actix web smart enough to ignore messages to stopped actor?
-            // ? Maybe resume and try to aquire lock later?
-            // For now just stop
-            return Running::Stop;
-            // TODO: Figure out solution
-        }
-        let mut sockets = sockets.unwrap();
+        let mut sockets = match self.data.sockets.lock(){
+            Ok(x) => x,
+            Err(x) => {
+                warn!("Couldn't aquire lock to remove client from socket list! This may cause an error if sending data to stopped actor address");
+                warn!("{:?}", x);
+                // ? What should we do here? Is Actix web smart enough to ignore messages to stopped actor?
+                // ? Maybe resume and try to aquire lock later?
+                // For now just stop
+                return Running::Stop;
+                // TODO: Figure out solution
+            }
+        };
         sockets
             .entry(self.full_key.clone())
             .or_insert(HashSet::new())
