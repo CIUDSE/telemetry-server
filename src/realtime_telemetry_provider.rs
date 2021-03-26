@@ -65,11 +65,7 @@ impl Actor for RealtimeTelemetryProvider {
             .entry(self.full_key.clone())
             .or_insert(HashSet::new())
             .insert(addr);
-        debug!(
-            "Adding new socket to list. Current Sockets [{}]: {:?}",
-            sockets.len(),
-            sockets
-        );
+        debug!("Adding new socket to list. Current Sockets [{}]: {:?}", sockets.len(), sockets);
     }
 
     fn stopping(&mut self, ctx: &mut Self::Context) -> Running {
@@ -91,11 +87,7 @@ impl Actor for RealtimeTelemetryProvider {
             .entry(self.full_key.clone())
             .or_insert(HashSet::new())
             .remove(&addr);
-        debug!(
-            "Removing socket from list. Current Sockets [{}]: {:?}",
-            sockets.len(),
-            sockets
-        );
+        debug!("Removing socket from list. Current Sockets [{}]: {:?}", sockets.len(), sockets);
         Running::Stop
     }
 }
