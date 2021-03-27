@@ -5,6 +5,8 @@ use actix_web_actors::ws;
 use log::{debug, warn};
 use serde_json::json;
 use std::time::{Duration, Instant, UNIX_EPOCH};
+use std::net::UdpSocket;
+use std::error::Error;
 
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
 const CLIENT_TIMEOUT: Duration = Duration::from_secs(10);
@@ -21,8 +23,6 @@ impl Actor for InjestSocket {
 
     fn started(&mut self, ctx: &mut Self::Context) {
         self.heartbeat(ctx);
-
-        // TODO: Create new table for key in database if not already present
     }
 }
 
@@ -38,7 +38,10 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for InjestSocket {
                 self.last_heartbeat = Instant::now();
             }
             Ok(ws::Message::Text(text)) => {
-                self.handle_message(ctx, text);
+                match self.handle_message(ctx, text){
+                    Ok(_) => {},
+                    Err(e) => { warn!("Error injesting data: {}", e); },
+                };
             }
             Ok(ws::Message::Binary(_bin)) => {}
             Ok(ws::Message::Close(reason)) => {
@@ -73,40 +76,30 @@ impl InjestSocket {
         });
     }
 
-    fn handle_message(&mut self, _ctx: &mut <Self as Actor>::Context, msg: String) {
-        let value = match msg.parse::<f32>() {
-            Ok(x) => x,
-            Err(_) => {
-                warn!("Socket message is not valid value: {}", msg);
-                return;
-            }
-        };
-        let sockets = match self.data.sockets.lock() {
-            Ok(x) => x,
-            Err(x) => {
-                warn!("Couldn't aquire socket list lock: {}", x);
-                return;
-            }
-        };
-        let key_sockets = match sockets.get(&self.full_key) {
-            Some(x) => x,
-            None => {
-                debug!("No registered client sockets for point [{}]", self.full_key);
-                return;
-            }
-        };
+    fn handle_message(&mut self, _ctx: &mut <Self as Actor>::Context, msg: String) -> Result<(), Box<dyn Error>> {
+        let value = msg.parse::<f32>()?;
+
         // ? Will we ever get that far ?
         let timestamp = UNIX_EPOCH.elapsed().unwrap().as_millis() as u64;
-        let message = UpdateTelemetryMessage::from(json!({
-            "timestamp": timestamp,
-            "value": value
-        }));
-        debug!("Message: {:?}", message);
-        for addr in key_sockets {
-            debug!("Sending message [{}] to: {:?}", self.full_key, addr);
-            addr.do_send(message.clone());
-        }
 
-        // TODO: Add value to database
+        if let Ok(client_sockets) = self.data.sockets.lock() {
+            
+            let message = UpdateTelemetryMessage::from(json!({
+                "timestamp": timestamp,
+                "value": value
+            }));
+
+            client_sockets.get(&self.full_key).map(|key_client_sockets| {
+                for addr in key_client_sockets {
+                    debug!("Sending message [{}] to: {:?}", self.full_key, addr);
+                    addr.do_send(message.clone());
+                }
+            });
+
+        } else {
+            return Err("Couldn't acquire lock!".into());
+        }
+        
+        Ok(())
     }
 }
