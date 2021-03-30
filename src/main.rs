@@ -7,18 +7,21 @@ use log::{debug, info};
 use realtime_telemetry_provider::{RealtimeClientConnections, RealtimeTelemetryProvider};
 mod injest_socket;
 use injest_socket::InjestSocket;
+mod database_actor;
+use database_actor::{DBActor, DBAddr};
+use actix::prelude::*;
 
 #[get("/realtime/{full_key}")]
 async fn realtime_index(
     r: HttpRequest,
     stream: web::Payload,
     info: web::Path<String>,
-    data: web::Data<RealtimeClientConnections>,
+    client_data: web::Data<RealtimeClientConnections>,
 ) -> Result<HttpResponse, Error> {
     debug!("{:?}", r);
     let full_key = info.0;
     info!("Domain object requesting telemetry: {}", full_key);
-    ws::start(RealtimeTelemetryProvider::new(full_key, data), &r, stream)
+    ws::start(RealtimeTelemetryProvider::new(full_key, client_data), &r, stream)
 }
 
 #[get("/injest/{full_key}")]
@@ -26,11 +29,12 @@ async fn injest_index(
     r: HttpRequest,
     stream: web::Payload,
     info: web::Path<String>,
-    data: web::Data<RealtimeClientConnections>,
+    client_data: web::Data<RealtimeClientConnections>,
+    db_data: web::Data<DBAddr>,
 ) -> Result<HttpResponse, Error> {
     let full_key = info.0;
     info!("New injest socket for: {}", full_key);
-    ws::start(InjestSocket::new(full_key, data), &r, stream)
+    ws::start(InjestSocket::new(full_key, client_data, db_data), &r, stream)
 }
 
 #[actix_web::main]
@@ -52,9 +56,12 @@ async fn main() -> std::io::Result<()> {
 
     let realtime_connections = web::Data::new(RealtimeClientConnections::new());
 
+    let db_data = web::Data::new(DBAddr::from(DBActor::new().start()));
+
     HttpServer::new(move || {
         App::new()
             .app_data(realtime_connections.clone())
+            .app_data(db_data.clone())
             // enable logger
             .wrap(middleware::Logger::default())
             // websocket route

@@ -15,7 +15,7 @@ async def run_client(uri):
     while True:
         message = producer()
         await websocket.send(message)
-        await asyncio.sleep(0.05)
+        await asyncio.sleep(1)
 
 
 if __name__ == "__main__":
