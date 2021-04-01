@@ -1,9 +1,7 @@
 use actix::prelude::*;
-use std::sync::Mutex;
-use std::net::UdpSocket;
+use std::{net::UdpSocket, sync::Mutex};
 use log::{debug, warn};
 use std::error::Error;
-
 #[derive(Debug)]
 pub struct DBAddr {
     pub addr: Mutex<Addr<DBActor>>

@@ -5,8 +5,7 @@ use actix_web::web;
 use actix_web_actors::ws;
 use log::{debug, warn};
 use serde_json::json;
-use std::time::{Duration, Instant, UNIX_EPOCH};
-use std::error::Error;
+use std::{error::Error, time::{Duration, Instant, UNIX_EPOCH}};
 
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
 const CLIENT_TIMEOUT: Duration = Duration::from_secs(10);
