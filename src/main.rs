@@ -1,15 +1,11 @@
-use actix_files as fs;
-use actix_web::{get, middleware, web, App, Error, HttpRequest, HttpResponse, HttpServer};
-
-mod realtime_telemetry_provider;
-use actix_web_actors::ws;
-use log::{debug, info};
-use realtime_telemetry_provider::{RealtimeClientConnections, RealtimeTelemetryProvider};
-mod injest_socket;
-use injest_socket::InjestSocket;
-mod database_actor;
-use database_actor::{DBActor, DBAddr};
 use actix::prelude::*;
+use actix_web::{get, middleware, web, App, Error, HttpRequest, HttpResponse, HttpServer};
+use actix_web_actors::ws;
+use actix_files as fs;
+use log::{debug, info};
+
+use telemetry_server::actors::*;
+use telemetry_server::data::*;
 
 #[get("/realtime/{full_key}")]
 async fn realtime_index(
