@@ -112,9 +112,9 @@ impl InjestSocket {
     pub fn new(full_key: String, client_data: web::Data<RealtimeClientConnections>, db_data: web::Data<DBAddr>) -> Self {
         InjestSocket {
             last_heartbeat: Instant::now(),
-            full_key: full_key,
-            client_data: client_data,
-            db_data: db_data,
+            full_key,
+            client_data,
+            db_data,
         }
     }
 
@@ -285,8 +285,8 @@ impl RealtimeTelemetryProvider {
     pub fn new(full_key: String, data: web::Data<RealtimeClientConnections>) -> Self {
         RealtimeTelemetryProvider {
             last_heartbeat: Instant::now(),
-            full_key: full_key,
-            data: data,
+            full_key,
+            data,
         }
     }
 
