@@ -196,11 +196,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for RealtimeTelemetry
 impl Handler<UpdateTelemetryMessage> for RealtimeTelemetryProvider {
     type Result = ();
 
-    fn handle(
-        &mut self,
-        msg: UpdateTelemetryMessage,
-        ctx: &mut <Self as Actor>::Context,
-    ) -> Self::Result {
+    fn handle(&mut self, msg: UpdateTelemetryMessage, ctx: &mut <Self as Actor>::Context) -> Self::Result {
         ctx.text(msg.json_data.to_string());
     }
 }
