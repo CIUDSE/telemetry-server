@@ -87,7 +87,7 @@ impl InjestSocket {
         // ? Will we ever get that far ?
         let timestamp = UNIX_EPOCH.elapsed().unwrap().as_millis() as u64;
 
-        self.db_data.addr.lock().unwrap().do_send(PushDBMsg {
+        self.db_data.addr.do_send(PushDBMsg {
             full_key: self.full_key.clone(),
             value: value,
             timestamp: timestamp
