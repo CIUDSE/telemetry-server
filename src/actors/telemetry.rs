@@ -89,8 +89,8 @@ impl InjestSocket {
 
         self.db_data.addr.do_send(PushDBMsg {
             full_key: self.full_key.clone(),
-            value: value,
-            timestamp: timestamp
+            value,
+            timestamp
         });
 
         // For some reason using "?" doesn't work here
