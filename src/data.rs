@@ -1,5 +1,6 @@
 use actix::prelude::*;
-use std::sync::Mutex;
+use std::{collections::{HashSet, HashMap}, sync::Mutex};
+use crate::actors::RealtimeTelemetryProvider;
 use crate::actors::DBActor;
 
 #[derive(Debug)]
@@ -11,6 +12,19 @@ impl DBAddr {
     pub fn from(addr: Addr<DBActor>) -> DBAddr{
         DBAddr {
             addr: Mutex::new(addr),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct RealtimeClientConnections {
+    pub sockets: Mutex<HashMap<String, HashSet<Addr<RealtimeTelemetryProvider>>>>,
+}
+
+impl RealtimeClientConnections {
+    pub fn new() -> Self {
+        Self {
+            sockets: Mutex::new(HashMap::new()),
         }
     }
 }

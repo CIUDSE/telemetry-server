@@ -2,8 +2,7 @@ use std::{
     error::Error,
     time::{Duration, Instant, UNIX_EPOCH},
     net::UdpSocket,
-    sync::Mutex,
-    collections::{HashMap, HashSet}
+    collections::HashSet
 };
 use actix::prelude::*;
 use actix_web::web;
@@ -11,7 +10,7 @@ use actix_web_actors::ws;
 use log::{debug, warn};
 use serde_json::json;
 use crate::messages::*;
-use crate::data::DBAddr;
+use crate::data::*;
 
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
 const CLIENT_TIMEOUT: Duration = Duration::from_secs(10);
@@ -164,18 +163,7 @@ impl InjestSocket {
     }
 }
 
-#[derive(Debug)]
-pub struct RealtimeClientConnections {
-    pub sockets: Mutex<HashMap<String, HashSet<Addr<RealtimeTelemetryProvider>>>>,
-}
 
-impl RealtimeClientConnections {
-    pub fn new() -> Self {
-        Self {
-            sockets: Mutex::new(HashMap::new()),
-        }
-    }
-}
 
 #[derive(Message, Debug, Clone)]
 #[rtype("()")]
