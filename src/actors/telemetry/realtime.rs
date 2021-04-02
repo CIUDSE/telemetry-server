@@ -29,25 +29,20 @@ impl Actor for RealtimeTelemetryProvider {
     fn started(&mut self, ctx: &mut Self::Context) {
         // Heartbeat
         heartbeat(ctx);
+        
         // Register client in global state
-        let addr = ctx.address();
-        let mut sockets = match self.data.sockets.lock() {
-            Ok(x) => x,
-            Err(x) => {
-                warn!("Couldn't aquire lock to add client socket to list! Closing connection client...");
-                warn!("{:?}", x);
-                ctx.close(Some(ws::CloseReason {
-                    code: ws::CloseCode::Error,
-                    description: Some("Internal server error. Couldn't register client.".to_string()),
-                }));
-                return;
-            }
-        };
-        sockets
-            .entry(self.full_key.clone())
-            .or_insert(HashSet::new())
-            .insert(addr);
-        debug!("Adding new socket to list. Current Sockets [{}]: {:?}", sockets.len(), sockets);
+        if let Ok(mut sockets) = self.data.sockets.lock() {
+            let addr = ctx.address();
+            sockets
+                .entry(self.full_key.clone())
+                .or_insert(HashSet::new())
+                .insert(addr);
+        } else {
+            ctx.close(Some(ws::CloseReason {
+                code: ws::CloseCode::Error,
+                description: Some("Internal server error. Couldn't register client.".to_string()),
+            }));
+        }
     }
 
     fn stopping(&mut self, ctx: &mut Self::Context) -> Running {
