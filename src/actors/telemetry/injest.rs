@@ -17,44 +17,7 @@ pub struct InjestSocket {
     db_data: web::Data<DBAddr>
 }
 
-impl Heartbeat for InjestSocket {
-    fn get_heartbeat(&self) -> Instant {
-        self.last_heartbeat
-    }
-    fn refresh_heartbeat(&mut self) {
-        self.last_heartbeat = Instant::now();
-    }
-}
-
-impl Actor for InjestSocket {
-    type Context = ws::WebsocketContext<Self>;
-
-    fn started(&mut self, ctx: &mut Self::Context) {
-        heartbeat(ctx);
-    }
-}
-
-impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for InjestSocket {
-    fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
-        ws_handler(self, msg, ctx, |text, _ctx, act| {
-            match act.injest_data(text){
-                Ok(_) => {},
-                Err(e) => { warn!("Error injesting data! {:?}", e); }
-            };
-        });
-    }
-}
-
 impl InjestSocket {
-    pub fn new(full_key: String, client_data: web::Data<RealtimeClientConnections>, db_data: web::Data<DBAddr>) -> Self {
-        InjestSocket {
-            last_heartbeat: Instant::now(),
-            full_key,
-            client_data,
-            db_data,
-        }
-    }
-
     fn injest_data(&self, msg: String) -> Result<(), Box<dyn Error>> {
         let value = msg.parse::<f32>()?;
 
@@ -84,5 +47,42 @@ impl InjestSocket {
         }
         
         Ok(())
+    }
+
+    pub fn new(full_key: String, client_data: web::Data<RealtimeClientConnections>, db_data: web::Data<DBAddr>) -> Self {
+        InjestSocket {
+            last_heartbeat: Instant::now(),
+            full_key,
+            client_data,
+            db_data,
+        }
+    }
+}
+
+impl Heartbeat for InjestSocket {
+    fn get_heartbeat(&self) -> Instant {
+        self.last_heartbeat
+    }
+    fn refresh_heartbeat(&mut self) {
+        self.last_heartbeat = Instant::now();
+    }
+}
+
+impl Actor for InjestSocket {
+    type Context = ws::WebsocketContext<Self>;
+
+    fn started(&mut self, ctx: &mut Self::Context) {
+        heartbeat(ctx);
+    }
+}
+
+impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for InjestSocket {
+    fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
+        ws_handler(self, msg, ctx, |text, _ctx, act| {
+            match act.injest_data(text){
+                Ok(_) => {},
+                Err(e) => { warn!("Error injesting data! {:?}", e); }
+            };
+        });
     }
 }
