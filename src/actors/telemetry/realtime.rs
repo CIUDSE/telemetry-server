@@ -5,7 +5,7 @@ use std::{
 use actix::prelude::*;
 use actix_web::web;
 use actix_web_actors::ws;
-use log::{debug, warn};
+use log::warn;
 use crate::{actors::common::*, data::*, messages::*};
 
 #[derive(Debug)]
@@ -47,24 +47,19 @@ impl Actor for RealtimeTelemetryProvider {
 
     fn stopping(&mut self, ctx: &mut Self::Context) -> Running {
         // Unregister client from global state
-        let addr = ctx.address();
-        let mut sockets = match self.data.sockets.lock(){
-            Ok(x) => x,
-            Err(x) => {
-                warn!("Couldn't aquire lock to remove client from socket list! This may cause an error if sending data to stopped actor address");
-                warn!("{:?}", x);
-                // ? What should we do here? Is Actix web smart enough to ignore messages to stopped actor?
-                // ? Maybe resume and try to aquire lock later?
-                // For now just stop
-                return Running::Stop;
-                // TODO: Figure out solution
-            }
-        };
-        sockets
-            .entry(self.full_key.clone())
-            .or_insert(HashSet::new())
-            .remove(&addr);
-        debug!("Removing socket from list. Current Sockets [{}]: {:?}", sockets.len(), sockets);
+        if let Ok(mut sockets) = self.data.sockets.lock() {
+            let addr = ctx.address();
+            sockets
+                .entry(self.full_key.clone())
+                .or_insert(HashSet::new())
+                .remove(&addr);
+        } else {
+            warn!("Couldn't aquire lock to remove client from socket list! This may cause an error if sending data to stopped actor address");
+            // ? What should we do here? Is Actix web smart enough to ignore messages to stopped actor?
+            // ? Maybe resume and try to aquire lock later?
+            // For now just stop
+            // TODO: Figure out solution
+        }
         Running::Stop
     }
 }
