@@ -8,9 +8,7 @@ use actix_web::web;
 use actix_web_actors::ws;
 use log::{debug, warn};
 use serde_json::json;
-use crate::messages::*;
-use crate::data::*;
-use crate::actors::common::*;
+use crate::{actors::common::*, data::*, messages::*};
 
 #[derive(Debug)]
 pub struct InjestSocket {
