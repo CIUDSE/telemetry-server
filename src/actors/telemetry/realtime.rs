@@ -15,12 +15,11 @@ pub struct RealtimeTelemetryProvider {
     data: web::Data<RealtimeClientConnections>,
 }
 
-impl Heartbeat for RealtimeTelemetryProvider {
-    fn get_heartbeat(&self) -> Instant {
-        self.last_heartbeat
-    }
-    fn refresh_heartbeat(&mut self) {
-        self.last_heartbeat = Instant::now();
+impl Handler<UpdateTelemetryMessage> for RealtimeTelemetryProvider {
+    type Result = ();
+
+    fn handle(&mut self, msg: UpdateTelemetryMessage, ctx: &mut <Self as Actor>::Context) -> Self::Result {
+        ctx.text(msg.json_data.to_string());
     }
 }
 
@@ -81,14 +80,6 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for RealtimeTelemetry
     }
 }
 
-impl Handler<UpdateTelemetryMessage> for RealtimeTelemetryProvider {
-    type Result = ();
-
-    fn handle(&mut self, msg: UpdateTelemetryMessage, ctx: &mut <Self as Actor>::Context) -> Self::Result {
-        ctx.text(msg.json_data.to_string());
-    }
-}
-
 impl RealtimeTelemetryProvider {
     pub fn new(full_key: String, data: web::Data<RealtimeClientConnections>) -> Self {
         RealtimeTelemetryProvider {
@@ -96,5 +87,14 @@ impl RealtimeTelemetryProvider {
             full_key,
             data,
         }
+    }
+}
+
+impl Heartbeat for RealtimeTelemetryProvider {
+    fn get_heartbeat(&self) -> Instant {
+        self.last_heartbeat
+    }
+    fn refresh_heartbeat(&mut self) {
+        self.last_heartbeat = Instant::now();
     }
 }
