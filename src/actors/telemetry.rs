@@ -5,7 +5,7 @@ use std::{
 };
 use actix::prelude::*;
 use actix_web::web;
-use actix_web_actors::ws;
+use actix_web_actors::ws::{self, WebsocketContext};
 use log::{debug, warn};
 use serde_json::json;
 use crate::messages::*;
@@ -13,6 +13,55 @@ use crate::data::*;
 
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
 const CLIENT_TIMEOUT: Duration = Duration::from_secs(10);
+
+trait Heartbeat {
+    fn get_heartbeat(&self) -> Instant;
+    fn refresh_heartbeat(&mut self);
+}
+
+fn heartbeat<A: Actor<Context = WebsocketContext<A>> + Heartbeat>(ctx: &mut WebsocketContext<A>) {
+    ctx.run_interval(HEARTBEAT_INTERVAL, |act, ctx| {
+        if act.get_heartbeat().elapsed() > CLIENT_TIMEOUT {
+            // heartbeat timed out
+            warn!("Websocket Client heartbeat failed, disconnecting!");
+            // stop actor
+            ctx.stop();
+            // don't try to send a ping
+            return;
+        }
+        ctx.ping(b"");
+    });
+}
+
+fn ws_handler<A,F>(
+    act: &mut A,
+    msg: Result<ws::Message, ws::ProtocolError>,
+    ctx: &mut WebsocketContext<A>,
+    text_handler: F)
+where
+    A: Actor<Context = WebsocketContext<A>> + Heartbeat,
+    F: Fn(String, &mut WebsocketContext<A>, &mut A)
+{
+    match msg {
+        Ok(ws::Message::Ping(msg)) => {
+            act.refresh_heartbeat();
+            ctx.pong(&msg);
+        }
+        Ok(ws::Message::Pong(_)) => {
+            act.refresh_heartbeat();
+        }
+        Ok(ws::Message::Text(text)) => {
+            text_handler(text, ctx, act);
+        }
+        Ok(ws::Message::Binary(_bin)) => {}
+        Ok(ws::Message::Close(reason)) => {
+            ctx.close(reason);
+            ctx.stop();
+        }
+        _ => ctx.stop(),
+    }
+}
+
 
 #[derive(Debug)]
 pub struct InjestSocket {
@@ -22,38 +71,31 @@ pub struct InjestSocket {
     db_data: web::Data<DBAddr>
 }
 
+impl Heartbeat for InjestSocket {
+    fn get_heartbeat(&self) -> Instant {
+        self.last_heartbeat
+    }
+    fn refresh_heartbeat(&mut self) {
+        self.last_heartbeat = Instant::now();
+    }
+}
+
 impl Actor for InjestSocket {
     type Context = ws::WebsocketContext<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
-        self.heartbeat(ctx);
+        heartbeat(ctx);
     }
 }
 
 impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for InjestSocket {
     fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
-        //debug!("WS: {:?} [{}]", msg, self.full_key);
-        match msg {
-            Ok(ws::Message::Ping(msg)) => {
-                self.last_heartbeat = Instant::now();
-                ctx.pong(&msg);
-            }
-            Ok(ws::Message::Pong(_)) => {
-                self.last_heartbeat = Instant::now();
-            }
-            Ok(ws::Message::Text(text)) => {
-                match self.injest_data(ctx, text){
-                    Ok(_) => {},
-                    Err(e) => { warn!("Error injesting data: {}", e); },
-                };
-            }
-            Ok(ws::Message::Binary(_bin)) => {}
-            Ok(ws::Message::Close(reason)) => {
-                ctx.close(reason);
-                ctx.stop();
-            }
-            _ => ctx.stop(),
-        }
+        ws_handler(self, msg, ctx, |text, _ctx, act| {
+            match act.injest_data(text){
+                Ok(_) => {},
+                Err(e) => { warn!("Error injesting data! {:?}", e); }
+            };
+        });
     }
 }
 
@@ -67,21 +109,7 @@ impl InjestSocket {
         }
     }
 
-    fn heartbeat(&self, ctx: &mut <Self as Actor>::Context) {
-        ctx.run_interval(HEARTBEAT_INTERVAL, |act, ctx| {
-            if Instant::now().duration_since(act.last_heartbeat) > CLIENT_TIMEOUT {
-                // heartbeat timed out
-                warn!("Websocket Client heartbeat failed, disconnecting!");
-                // stop actor
-                ctx.stop();
-                // don't try to send a ping
-                return;
-            }
-            ctx.ping(b"");
-        });
-    }
-
-    fn injest_data(&mut self, _ctx: &mut <Self as Actor>::Context, msg: String) -> Result<(), Box<dyn Error>> {
+    fn injest_data(&self, msg: String) -> Result<(), Box<dyn Error>> {
         let value = msg.parse::<f32>()?;
 
         // ? Will we ever get that far ?
@@ -120,12 +148,21 @@ pub struct RealtimeTelemetryProvider {
     data: web::Data<RealtimeClientConnections>,
 }
 
+impl Heartbeat for RealtimeTelemetryProvider {
+    fn get_heartbeat(&self) -> Instant {
+        self.last_heartbeat
+    }
+    fn refresh_heartbeat(&mut self) {
+        self.last_heartbeat = Instant::now();
+    }
+}
+
 impl Actor for RealtimeTelemetryProvider {
     type Context = ws::WebsocketContext<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
         // Heartbeat
-        self.heartbeat(ctx);
+        heartbeat(ctx);
         // Register client in global state
         let addr = ctx.address();
         let mut sockets = match self.data.sockets.lock() {
@@ -173,23 +210,7 @@ impl Actor for RealtimeTelemetryProvider {
 
 impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for RealtimeTelemetryProvider {
     fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
-        debug!("WS: {:?} [{}]", msg, self.full_key);
-        match msg {
-            Ok(ws::Message::Ping(msg)) => {
-                self.last_heartbeat = Instant::now();
-                ctx.pong(&msg);
-            }
-            Ok(ws::Message::Pong(_)) => {
-                self.last_heartbeat = Instant::now();
-            }
-            Ok(ws::Message::Text(_text)) => {}
-            Ok(ws::Message::Binary(_bin)) => {}
-            Ok(ws::Message::Close(reason)) => {
-                ctx.close(reason);
-                ctx.stop();
-            }
-            _ => ctx.stop(),
-        }
+        ws_handler(self, msg, ctx, |_, _, _|{});
     }
 }
 
@@ -208,19 +229,5 @@ impl RealtimeTelemetryProvider {
             full_key,
             data,
         }
-    }
-
-    fn heartbeat(&self, ctx: &mut <Self as Actor>::Context) {
-        ctx.run_interval(HEARTBEAT_INTERVAL, |act, ctx| {
-            if Instant::now().duration_since(act.last_heartbeat) > CLIENT_TIMEOUT {
-                // heartbeat timed out
-                warn!("Websocket Client heartbeat failed, disconnecting!");
-                // stop actor
-                ctx.stop();
-                // don't try to send a ping
-                return;
-            }
-            ctx.ping(b"");
-        });
     }
 }
