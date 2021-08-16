@@ -1,1 +1,0 @@
-Copy-Item -Path ".\ciudse-telemetry\dist\*" -Destination ".\static\" -Recurse -Force
