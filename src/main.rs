@@ -41,9 +41,6 @@ async fn main() -> std::io::Result<()> {
     
     #[cfg(not(debug_assertions))]
     std::env::set_var("RUST_LOG", "info,actix_server=info,actix_web=info");
-
-    #[cfg(debug_assertions)]
-    let root_dir = "ciudse-telemetry/dist/";
     
     #[cfg(not(debug_assertions))]
     let root_dir = "static/";
@@ -55,16 +52,22 @@ async fn main() -> std::io::Result<()> {
     let db_data = web::Data::new(DBAddr::from(DBActor::new().start()));
 
     HttpServer::new(move || {
-        App::new()
+        let app = App::new()
             .app_data(realtime_connections.clone())
             .app_data(db_data.clone())
             // enable logger
             .wrap(middleware::Logger::default())
             // websocket route
             .service(realtime_index)
-            .service(injest_index)
-            // static files
-            .service(fs::Files::new("/", root_dir).index_file("index.html"))
+            .service(injest_index);
+        #[cfg(debug_assertions)]
+        return app;
+        // static file server
+        // Enabled only for production since
+        // in development, frontend is dynamically
+        // updated by Parcel
+        #[cfg(not(debug_assertions))]
+        app.service(fs::Files::new("/", root_dir).index_file("index.html"))
     })
     .bind("127.0.0.1:8081")?
     .run()
