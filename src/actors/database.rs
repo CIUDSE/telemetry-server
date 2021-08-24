@@ -1,12 +1,13 @@
 use std::error::Error;
-use std::net::UdpSocket;
+use std::net::TcpStream;
+use std::io::prelude::*;
 use actix::prelude::*;
 use crate::messages::PushDBMsg;
 use log::{debug, warn};
 
 #[derive(Debug)]
 pub struct DBActor {
-    socket: Option<UdpSocket>,
+    stream: Option<TcpStream>,
 }
 
 impl Handler<PushDBMsg> for DBActor {
@@ -35,20 +36,22 @@ impl Actor for DBActor {
 impl DBActor {
     pub fn new() -> DBActor {
         DBActor {
-            socket: None,
+            stream: None,
         }
     }
 
-    fn pushdb(&self, msg: PushDBMsg) -> Result<usize, Box<dyn Error>> {
-        let socket = UdpSocket::bind("0.0.0.0:0")?;
+    fn pushdb(&mut self, msg: PushDBMsg) -> Result<String, Box<dyn Error>> {
+        let database_address = "127.0.0.1:9009";
+        if self.stream.is_none() {
+            self.stream = Some(TcpStream::connect(database_address)?);
+        }
+        let mut stream = self.stream.as_ref().unwrap();
         let query = format!("{table} value={value} {timestamp}",
             table = msg.full_key,
             value = msg.value,
             timestamp = msg.timestamp, 
         );
-        let database_address = "127.0.0.1:9009";
-        socket.connect(database_address)?;
-        let r = socket.send(query.as_bytes())?;
-        Ok(r)
+        stream.write(query.as_bytes())?;
+        Ok(query)
     }
 }
