@@ -46,7 +46,7 @@ impl DBActor {
             self.stream = Some(TcpStream::connect(database_address)?);
         }
         let mut stream = self.stream.as_ref().unwrap();
-        let query = format!("{table} value={value} {timestamp}",
+        let query = format!("{table} value={value} {timestamp}\n",
             table = msg.full_key,
             value = msg.value,
             timestamp = msg.timestamp, 
