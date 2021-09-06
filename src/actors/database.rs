@@ -47,7 +47,7 @@ impl DBActor {
         }
         let mut stream = self.stream.as_ref().unwrap();
         // Influx line protocol timestamps are in nanoseconds
-        let query = format!("{table} value={value} {timestamp}000000\n",
+        let query = format!("{table} value={value} {timestamp}000000\n\n",
             table = msg.full_key,
             value = msg.value,
             timestamp = msg.timestamp, 
