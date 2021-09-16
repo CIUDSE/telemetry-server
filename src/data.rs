@@ -2,6 +2,7 @@ use actix::prelude::*;
 use std::{collections::{HashSet, HashMap}, sync::Mutex};
 use crate::actors::RealtimeTelemetryProvider;
 use crate::actors::DBActor;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug)]
 pub struct DBAddr {
@@ -25,4 +26,10 @@ impl RealtimeClientConnections {
             sockets: Mutex::new(HashMap::new()),
         }
     }
+}
+
+#[derive(Deserialize, Serialize)]
+pub struct TelemetryDatum {
+    pub timestamp: u64,
+    pub value: f64
 }

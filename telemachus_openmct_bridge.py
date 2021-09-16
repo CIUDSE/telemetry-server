@@ -28,7 +28,7 @@ async def connect_openmct(ws_connections, telemachus_key, openmct_key):
 
 async def openmct_send(ws, v):
     await ws.send(v)
-    print(f"Sent {v} to {ws.path}")
+    #print(f"Sent {v} to {ws.path}")
 
 async def update_telemetry(ws_connections):
     s = []
@@ -38,17 +38,17 @@ async def update_telemetry(ws_connections):
         s.append(f"a{i}={p['telemachus_key']}&")
     url = ''.join(s)
     async with aiohttp.ClientSession() as session:
-        print(f"Requesting Kerbal telemetry. {url}")
+        #print(f"Requesting Kerbal telemetry. {url}")
         async with session.get(url) as r:
             data = await r.json()
-            print("Got Kerbal response")
-            print(data)
+            #print("Got Kerbal response")
+            #print(data)
             for key, val in data.items():
                 i = int(key[1:])
                 v = float(val)
-                print(f"OpenMCT send {i}: {v}")
+                #print(f"OpenMCT send {i}: {v}")
                 asyncio.ensure_future(openmct_send(active_connections[i]['ws_connection'], str(v)))
-    await asyncio.sleep(1)
+    await asyncio.sleep(0.1)
     asyncio.ensure_future(update_telemetry(ws_connections))
     
 if __name__ == "__main__":

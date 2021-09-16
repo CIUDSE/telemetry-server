@@ -3,9 +3,39 @@ use actix_web::{get, middleware, web, App, Error, HttpRequest, HttpResponse, Htt
 use actix_web_actors::ws;
 use actix_files as fs;
 use log::{debug, info};
+use serde::{Deserialize, Serialize};
 
 use telemetry_server::actors::*;
 use telemetry_server::data::*;
+use telemetry_server::messages::*;
+
+#[derive(Deserialize)]
+struct HistoricalTelemetryRequestQueryInfo {
+    start: u64,
+    end: u64,
+}
+
+#[get("/historical/{full_key}")]
+async fn historical_index(
+    path_info: web::Path<String>,
+    query_info: web::Query<HistoricalTelemetryRequestQueryInfo>,
+    db_data: web::Data<DBAddr>,
+) -> Result<HttpResponse, Error> {
+    let full_key = path_info.0;
+    let raw_data = db_data.addr.send(QueryDBMsg{
+        full_key,
+        start: query_info.start,
+        end: query_info.end
+    }).await;
+    if raw_data.is_err() { return Ok(HttpResponse::Ok().body("[]")); }
+    let raw_data = raw_data.unwrap();
+    if raw_data.is_err() { return Ok(HttpResponse::Ok().body("[]")); }
+    let raw_data = raw_data.unwrap();
+    let datums = raw_data;
+    Ok(HttpResponse::Ok().json(
+        datums
+    ))
+}
 
 #[get("/realtime/{full_key}")]
 async fn realtime_index(
@@ -37,7 +67,9 @@ async fn injest_index(
 async fn main() -> std::io::Result<()> {
     
     #[cfg(debug_assertions)]
-    std::env::set_var("RUST_LOG", "debug,actix_server=debug,actix_web=debug");
+    std::env::set_var("RUST_LOG", "info,actix_server=info,actix_web=info");
+    
+    // std::env::set_var("RUST_LOG", "debug,actix_server=debug,actix_web=debug");
     
     #[cfg(not(debug_assertions))]
     std::env::set_var("RUST_LOG", "info,actix_server=info,actix_web=info");
@@ -69,7 +101,7 @@ async fn main() -> std::io::Result<()> {
         #[cfg(not(debug_assertions))]
         app.service(fs::Files::new("/", root_dir).index_file("index.html"))
     })
-    .bind("127.0.0.1:8081")?
+    .bind("localhost:8081")?
     .run()
     .await
 }

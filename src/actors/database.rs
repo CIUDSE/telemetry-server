@@ -1,9 +1,12 @@
-use std::error::Error;
+use std::{collections::btree_set::Union, error::Error};
 use std::net::TcpStream;
 use std::io::prelude::*;
 use actix::prelude::*;
-use crate::messages::PushDBMsg;
+use crate::messages::*;
 use log::{debug, warn};
+use crate::data::TelemetryDatum;
+use serde_json::Value;
+use ms_converter;
 
 #[derive(Debug)]
 pub struct DBActor {
@@ -22,6 +25,19 @@ impl Handler<PushDBMsg> for DBActor {
             Ok(r) => { debug!("{}", r); },
             Err(e) => { warn!("{:?}", e); }
         };
+    }
+}
+
+impl Handler<QueryDBMsg> for DBActor {
+    type Result = ResponseFuture<Result<Vec<TelemetryDatum>, std::io::Error>>;
+
+    fn handle(
+        &mut self,
+        msg: QueryDBMsg,
+        _ctx: &mut <Self as Actor>::Context) -> Self::Result
+    {
+        let fut = std::future::ready(self.querydb_suppress_errors(msg));
+        Box::pin(fut)
     }
 }
 
@@ -54,5 +70,40 @@ impl DBActor {
         );
         stream.write(query.as_bytes())?;
         Ok(query)
+    }
+
+    async fn querydb_suppress_errors(&mut self, msg: QueryDBMsg) -> Result<Vec<TelemetryDatum>, std::io::Error> {
+        match self.querydb(msg).await {
+            Ok(r) => r,
+            Err(e) => vec![],
+        }
+    }
+
+    async fn querydb(&mut self, msg: QueryDBMsg) -> Result<Vec<TelemetryDatum>, Box<dyn Error>> {
+        let database_url = "127.0.0.1:9000/exec";
+        let full_key = msg.full_key;
+        let start = msg.start;
+        let end = msg.end;
+        let sql_query = format!(
+            "SELECT * FROM \"{table}\" WHERE timestamp BETWEEN CAST({left_millis}000000 AS TIMESTAMP) AND CAST({right_millis}000000 AS TIMESTAMP)",
+            table = full_key,
+            left_millis = start,
+            right_millis = end
+        );
+        let mut response = actix_web::client::Client::new().get(database_url).query(&sql_query)?.send().await?;
+        let raw_data = response.body().await?;
+        let data: Value = serde_json::from_slice(&raw_data)?;
+        let dataset = &data["dataset"];
+        let mut output: Vec<TelemetryDatum> = Vec::new();
+        for row in dataset.as_array().unwrap() {
+            let val = row.as_array().unwrap()[0].as_f64().unwrap();
+            let timestamp = row.as_array().unwrap()[1].as_str().unwrap();
+            let timestamp = ms_converter::ms(timestamp).unwrap() as u64;
+            output.push(TelemetryDatum{
+                timestamp,
+                value: val,
+            });
+        }
+        Ok(output)
     }
 }
