@@ -10,7 +10,7 @@ pub struct PushDBMsg {
 }
 
 #[derive(Message, Debug, Clone)]
-#[rtype(result = "Result<Vec<TelemetryDatum>, std::io::Error>")]
+#[rtype(result = "Result<Vec<TelemetryDatum>, ()>")]
 pub struct QueryDBMsg {
     pub full_key: String,
     pub start: u64,
