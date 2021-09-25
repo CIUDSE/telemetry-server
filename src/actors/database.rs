@@ -1,12 +1,13 @@
-use std::{collections::btree_set::Union, error::Error};
+use std::error::Error;
 use std::net::TcpStream;
 use std::io::prelude::*;
 use actix::prelude::*;
 use crate::messages::*;
-use log::{debug, warn};
+use log::{debug, info, warn};
 use crate::data::TelemetryDatum;
 use serde_json::Value;
 use ms_converter;
+use chrono::{NaiveDateTime, NaiveDate};
 
 #[derive(Debug)]
 pub struct DBActor {
@@ -36,6 +37,7 @@ impl Handler<QueryDBMsg> for DBActor {
         msg: QueryDBMsg,
         _ctx: &mut <Self as Actor>::Context) -> Self::Result
     {
+        info!("Db msg");
         Box::pin(async move {
             let re = querydb_suppress_errors(msg);
             let re = re.await;
@@ -55,30 +57,55 @@ impl Actor for DBActor {
 async fn querydb_suppress_errors(msg: QueryDBMsg) -> Vec<TelemetryDatum> {
     match querydb(msg).await {
         Ok(r) => r,
-        Err(e) => vec![],
+        Err(e) => {
+            warn!("{:?}", &e);
+            vec![]
+        },
     }
 }
 
 async fn querydb(msg: QueryDBMsg) -> Result<Vec<TelemetryDatum>, Box<dyn Error>> {
-    let database_url = "127.0.0.1:9000/exec";
+    let database_url = "http://127.0.0.1:9000/exec";
     let full_key = msg.full_key;
     let start = msg.start;
     let end = msg.end;
+    debug!("Stuff");
     let sql_query = format!(
-        "SELECT * FROM \"{table}\" WHERE timestamp BETWEEN CAST({left_millis}000000 AS TIMESTAMP) AND CAST({right_millis}000000 AS TIMESTAMP)",
+        "SELECT * FROM \"{table}\" WHERE timestamp BETWEEN CAST({left_millis}000 AS TIMESTAMP) AND CAST({right_millis}000 AS TIMESTAMP)",
         table = full_key,
         left_millis = start,
         right_millis = end
     );
-    let mut response = actix_web::client::Client::new().get(database_url).query(&sql_query)?.send().await?;
+    debug!("SQL query");
+    let req = actix_web::client::Client::new().get(database_url).query(
+        &[
+            ("query", sql_query)
+        ]
+    )?;
+    debug!("Request URI: \"{}\"", req.get_uri());
+    let mut response = req.send().await?;
+    debug!("Response");
     let raw_data = response.body().await?;
+    debug!("{:?}", raw_data);
     let data: Value = serde_json::from_slice(&raw_data)?;
+    debug!("{:?}", data);
     let dataset = &data["dataset"];
     let mut output: Vec<TelemetryDatum> = Vec::new();
     for row in dataset.as_array().unwrap() {
         let val = row.as_array().unwrap()[0].as_f64().unwrap();
-        let timestamp = row.as_array().unwrap()[1].as_str().unwrap();
-        let timestamp = ms_converter::ms(timestamp).unwrap() as u64;
+        let timestamp_str = row.as_array().unwrap()[1].as_str().unwrap();
+        let n = timestamp_str.len();
+        let timestamp_str = &timestamp_str[..n-1];
+        let datetime = NaiveDateTime::parse_from_str(
+            timestamp_str,
+            "%Y-%m-%dT%H:%M:%S%.f");
+
+        if datetime.is_err() {
+            warn!("Couldn't convert timestamp {:?}", timestamp_str);
+            return Err(Box::new(datetime.err().unwrap()));
+        }
+        let datetime = datetime.unwrap();
+        let timestamp = datetime.timestamp_millis() as u64;
         output.push(TelemetryDatum{
             timestamp,
             value: val,

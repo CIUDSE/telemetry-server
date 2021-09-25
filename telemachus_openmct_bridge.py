@@ -14,7 +14,7 @@ telemetry_mappings = {
 }
 openmct_domain = "localhost"
 openmct_port = 8081
-telemachus_domain = "172.28.192.1"
+telemachus_domain = "127.18.208.1"
 telemachus_port = 8085
 
 async def connect_openmct(ws_connections, telemachus_key, openmct_key):

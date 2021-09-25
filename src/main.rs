@@ -3,8 +3,7 @@ use actix_web::{get, middleware, web, App, Error, HttpRequest, HttpResponse, Htt
 use actix_web_actors::ws;
 use actix_files as fs;
 use log::{debug, info};
-use serde::{Deserialize, Serialize};
-
+use serde::Deserialize;
 use telemetry_server::actors::*;
 use telemetry_server::data::*;
 use telemetry_server::messages::*;
@@ -22,11 +21,13 @@ async fn historical_index(
     db_data: web::Data<DBAddr>,
 ) -> Result<HttpResponse, Error> {
     let full_key = path_info.0;
+    println!("DB?");
     let raw_data = db_data.addr.send(QueryDBMsg{
         full_key,
         start: query_info.start,
         end: query_info.end
     }).await;
+    info!("Got DB msg, responding: {:?}", &raw_data);
     if raw_data.is_err() { return Ok(HttpResponse::Ok().body("[]")); }
     let raw_data = raw_data.unwrap();
     if raw_data.is_err() { return Ok(HttpResponse::Ok().body("[]")); }
@@ -65,16 +66,8 @@ async fn injest_index(
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    
-    #[cfg(debug_assertions)]
-    std::env::set_var("RUST_LOG", "info,actix_server=info,actix_web=info");
-    
-    // std::env::set_var("RUST_LOG", "debug,actix_server=debug,actix_web=debug");
-    
-    #[cfg(not(debug_assertions))]
-    std::env::set_var("RUST_LOG", "info,actix_server=info,actix_web=info");
-    
-    #[cfg(not(debug_assertions))]
+    std::env::set_var("RUST_LOG", "debug,actix_server=debug,actix_web=debug");
+
     let root_dir = "static/";
     
     env_logger::init();
@@ -84,22 +77,16 @@ async fn main() -> std::io::Result<()> {
     let db_data = web::Data::new(DBAddr::from(DBActor::new().start()));
 
     HttpServer::new(move || {
-        let app = App::new()
+        App::new()
             .app_data(realtime_connections.clone())
             .app_data(db_data.clone())
             // enable logger
             .wrap(middleware::Logger::default())
             // websocket route
             .service(realtime_index)
-            .service(injest_index);
-        #[cfg(debug_assertions)]
-        return app;
-        // static file server
-        // Enabled only for production since
-        // in development, frontend is dynamically
-        // updated by Parcel
-        #[cfg(not(debug_assertions))]
-        app.service(fs::Files::new("/", root_dir).index_file("index.html"))
+            .service(injest_index)
+            .service(historical_index)
+            .service(fs::Files::new("/", root_dir))
     })
     .bind("localhost:8081")?
     .run()

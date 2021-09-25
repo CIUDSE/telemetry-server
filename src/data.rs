@@ -28,7 +28,7 @@ impl RealtimeClientConnections {
     }
 }
 
-#[derive(Deserialize, Serialize, Clone)]
+#[derive(Deserialize, Serialize, Clone, Debug)]
 pub struct TelemetryDatum {
     pub timestamp: u64,
     pub value: f64
